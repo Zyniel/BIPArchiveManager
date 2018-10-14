@@ -9,15 +9,14 @@
 #                                                                             #
 ###############################################################################
 #                                                                             #
+# TODO : Code : Real error handling
+# TODO : Code : Cleaup exit status
+# TODO : Feature : Connect to Remote BIP ad download archives
+# TODO : Feature : Connect with Certs
+# TODO : Feature : Parametrage Unarchiver and Archive pattern
+#
 ###############################################################################
 
-# Test : e:\OneDrive\Projects\BIPVersioner\source\extractor.ps1 -InputPath "C:/Temp/AA/in" -OutputPath "C:/Temp/AA/out" -WorkPath "C:/Temp/AA/tmp"
-
-#
-# Parse Parameters
-#   1 - Input Folder Path
-#   2 - Output Folder Path
-#   3 - Temporary Folder Path
 #
 [CmdletBinding()]
 Param(
@@ -96,8 +95,31 @@ Param(
 
 )
 
+# Set-PSDebug -Trace 1
+
 # Constants
 Set-Variable ZIP_CMDPATH -value "C:/Program Files/7-Zip/7z.exe"
+
+Set-Variable BIP_DRZ -value ".xdrz"             # BI Publisher Folders
+Set-Variable BIP_DMZ -value ".xdmz"             # BI Publisher Data Model
+Set-Variable BIP_DOZ -value ".xdoz"             # BI Publisher Report
+Set-Variable BIP_SSZ -value ".xssz"             # BI Publisher Style Template
+Set-Variable BIP_SBZ -value ".xsbz"             # BI Publisher Subtemplate
+Set-Variable BIP_XLF -value ".xliff"            # BI Publisher XLIFF Translation
+
+Set-Variable BIP_SEC -value "~security.Sec"     # BI Publisher Security filename
+Set-Variable BIP_MET -value "~metadata.meta"    # BI Publisher Metadata filename
+Set-Variable BIP_THB -value ".png"              # BI Publisher Thumbnail filename
+Set-Variable BIP_SMP -value "sample.xml"        # BI Publisher Sample filename
+
+Set-Variable BIP_SQL -value ".sql"              # SQL Filename extension
+
+Set-Variable SQL_DM_PREFIX -value "DM_"         # Prefix for DataModel SQL filename 
+Set-Variable SQL_LOV_PREFIX -value "LOV_"       # Prefix for ValueSets SQL filename 
+Set-Variable SQL_TRG_PREFIX -value "TRG_"       # Prefix for Trigger SQL filename 
+Set-Variable SQL_BRS_PREFIX -value "BRS_"       # Prefix for Bursting SQL filename 
+
+Set-Variable DEFAULT_CFG_FILE -value "conf.xml"
 
 #
 #
@@ -130,7 +152,6 @@ function loadConfiguration ($pConfigFile) {
     }
     return $Settings  
 }
-
 
 #
 # Displays a Yes/No command-line prompt with a custom message
@@ -219,7 +240,6 @@ function RemoveBIPUselessInternalFiles {
     }
 }
 
-
 <#  
     .SYNOPSIS
     Parses a DataModel Metadata and export SQL Statements
@@ -259,12 +279,10 @@ function GetSQLStatements ($xdoc, $path, $xPathSelector, $sqlType) {
     # burst name="BURSTING_MAIL"
     foreach ($xnode in $xnodes) {
         # $name = $xnode.
-        $name = (GetSQLFilenameFromNode $xnode $sqlType)
-        Write-Host "    + BRS Name: $($name)"
+        $filename = (GetSQLFilenameFromNode $xnode $sqlType)
+        Write-Host "    + BRS Name: $($filename)"
 
-        #
-        $sqlFilename = Join-Path $path $name
-        SaveDOMNodeToFile $xnode.InnerText $sqlFilename    
+        SaveDOMNodeToFile $xnode.InnerText $path $filename    
     }
 }
 
@@ -279,46 +297,49 @@ function GetSQLFilenameFromNode ($xnode, $sqlType) {
     switch ($sqlType) {
         DataSet {
             $name = ($xnode.ParentNode.Attributes | Where-Object { ( $_.Name -eq "name") } | ForEach-Object { $_.Value })
-            $name = "DS_" + $name + ".sql"
+            $name = ($SQL_DM_PREFIX + $name + $BIP_SQL)
         }
         ValueSet {
             $name = ($xnode.ParentNode.Attributes | Where-Object { ( $_.Name -eq "id") } | ForEach-Object { $_.Value })
-            $name = "LOV_" + $name + ".sql"
+            $name = ($SQL_LOV_PREFIX + $name + $BIP_SQL)
         }
         Bursting {
             $name = ($xnode.ParentNode.ParentNode.Attributes | Where-Object { ( $_.Name -eq "name") } | ForEach-Object { $_.Value })
-            $name = "BRS_" + $name + ".sql"
+            $name = ($SQL_BRS_PREFIX + $name + $BIP_SQL)
         }
         Trigger {
             $name = ($xnode.ParentNode.Attributes | Where-Object { ( $_.Name -eq "name") } | ForEach-Object { $_.Value })
-            $name = "TRG_" + $name + ".sql"
+            $name = ($SQL_TRG_PREFIX + $name + $BIP_SQL)
         }               
     }
     return $name
 }
 
 #
-# Save XML Node to File
+# Save XML Node to a valid Filename.
 #
-function SaveDOMNodeToFile($xdom, $file) {
-    # Get
-    $Content = $xdom
-    [System.IO.File]::WriteAllLines($file, $Content)
+function SaveDOMNodeToFile($xdom, $path, $filename) {   
+    $fileFixed = $filename
+    [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object {
+        $fileFixed = $fileFixed.replace($_, '.')
+    }
+    $fileFixed = (Join-Path $path $fileFixed)
+    [System.IO.File]::WriteAllLines($fileFixed, $xdom)
 }
 
 #
 # Handle Objects Exports
-# ".xdmz",".xdoz",".xssz",".xsbz"
 #
 function UnarchiveBIPItemExports ([System.IO.FileInfo[]]$exportFiles) {
     $exportFiles | Where-Object { ($FilterItems -contains "*$($_.Extension)") } | ForEach-Object {
         $ext = "*$($_.Extension)"
-        if ($ext -eq "*.xdrz") {
+        # Folders
+        if ($ext -eq "*$($BIP_DRZ)") {
             UnarchiveBIPFolderExports $_
         }
+        # All Others
         else {
 
-            # Kept because rework coming
             $extractDir = Resolve-Path $_.FullName
             Write-Host "Extracting Item $($extractDir)"
 
@@ -337,23 +358,15 @@ function UnarchiveBIPItemExports ([System.IO.FileInfo[]]$exportFiles) {
             #    o   - Set output directory
             Write-Host " - Extract to $($oldName)"
             # & "$ZIP_CMDPATH" "x" "$newFullName" "-aoa" "-o$oldFullName" "-bd" "-bb2" "-bsp1" "-bse2" "-bso1"
-            & "$ZIP_CMDPATH" "x" "$newFullName" "-aoa" "-o$oldFullName" "-bd" "-bb0" "-bsp0" "-bse2" "-bso0" $Exclude7ZipArgs
+            & $($global:Settings.ZipSettings.Path) "x" "$newFullName" "-aoa" "-o$oldFullName" "-bd" "-bb0" "-bsp0" "-bse2" "-bso0" ($Exclude7ZipArgs)
 
             # Remove extracted archive
             Write-Host " - Remove $($newName)"
             Remove-Item "$newFullName"
 
-            # Proceed to Item Folder Purge
-            # Remove all BIP useless Elements
-            # NOTE : Should no be useless with 7zip initial filter
-            # if ($DoPurgeItems) {
-            #   Write-Host " - Purge Item Folder"
-            #   RemoveBIPUselessFiles -Path "$oldFullName"
-            # }
-
-            # Post Process Item
-            if ($_.Extension -eq ".xdmz") {
-                if ($ExtractSQL) {
+            # Post-Process Item
+            if ($_.Extension -eq $BIP_DMZ) {
+                if ($global:Settings.Arguments.ExtractSQL) {
                     $dmPath = Join-Path $oldFullName "_datamodel.xdm"
                     ParseForSQLStmts $dmPath $oldFullName
                 } 
@@ -368,7 +381,7 @@ function UnarchiveBIPItemExports ([System.IO.FileInfo[]]$exportFiles) {
 #
 function UnarchiveBIPFolderExports ([System.IO.FileInfo[]]$exportFiles) {
     # Unarchive Folders
-    $exportFiles | Where-Object { ($_.Extension -eq ".xdrz") } | ForEach-Object {
+    $exportFiles | Where-Object { ($_.Extension -eq $BIP_DRZ) } | ForEach-Object {
         # Kept because rework coming
         $extractDir = Join-Path $global:Settings.Arguments.WorkDirPath $_.Name
         Write-Host "Extracting Folder $($extractDir)"
@@ -379,29 +392,22 @@ function UnarchiveBIPFolderExports ([System.IO.FileInfo[]]$exportFiles) {
         #    bd  - Disable progress indicator
         #    o   - Set output directory    
         # & "$ZIP_CMDPATH" "x" $_.fullname "-aoa" "-o$extractDir" "-bd" "-bb2" "-bsp1" "-bse2" "-bso1"
-        & "$ZIP_CMDPATH" "x" $_.Fullname "-aoa" "-o$extractDir" "-bd" "-bb0" "-bsp0" "-bse2" "-bso0" $Exclude7ZipArgs
+        & $($global:Settings.ZipSettings.Path) "x" $_.Fullname "-aoa" "-o$extractDir" "-bd" "-bb0" "-bsp0" "-bse2" "-bso0" ($Exclude7ZipArgs)
 
         # Unarchive potential Items that were contained in the Folder
         $gci = GetAllBIPExports -Path $extractDir
         UnarchiveBIPItemExports $gci
-
-        # NOTE : Should no be useless with 7zip initial filter
-        # Cleanup
-        # if ($DoPurgeInternals) {
-        #   Write-Host "Purge Folders"
-        #   RemoveBIPUselessInternalFiles $extractDir
-        # }
     }
 }
 
 #
-#
-# From 7Zip Documentation
-#        -x[<recurse_type>]<file_ref>
-#        <recurse_type> ::= r[- | 0]
-#        <file_ref> ::= @{listfile} | !{wildcard}
+# 
 #
 Function FormatExclude7ZipToArgs ($exclude7zip) {
+    # From 7Zip Documentation
+    #        -x[<recurse_type>]<file_ref>
+    #        <recurse_type> ::= r[- | 0]
+    #        <file_ref> ::= @{listfile} | !{wildcard}
     $exclude7zipArgs = @()
     foreach ($pattern in $exclude7zip) {
         $exclude7zipArgs += ("-xr!" + $pattern)
@@ -414,11 +420,18 @@ Function FormatExclude7ZipToArgs ($exclude7zip) {
 #
 try {
 
+    $global:GUID = [guid]::NewGuid()
     $global:Settings = @{}
 
-    # TODO : Wrong way to handle. To rework
+    # TODO : Wrong way to handle. To rework ...
     try {
-        $global:Settings = loadConfiguration "conf.xml"
+        if ($pConfig -ne "") {
+            $confFile = $pConfig
+        }
+        else {
+            $confFile = $DEFAULT_CFG_FILE
+        }
+        $global:Settings = loadConfiguration $confFile
     }
     catch {
         Write-Host "No configuration to load. Using arguments."
@@ -439,8 +452,6 @@ try {
             Write-Error -Message "Folder not created. Process stopped !" -ErrorAction Stop
         } 
 
-        # Constants / Globals
-        $GUID = [guid]::NewGuid()
         # Folder Information
         $global:Settings.Arguments.InputDirPath = $pInputDirPath
         $global:Settings.Arguments.OutputDirPath = $pOutputDirPath
@@ -457,47 +468,47 @@ try {
         $global:Settings.Arguments.OmitStyleTemplates = $pOmitStyleTemplates.IsPresent
         # Advanced options
         $global:Settings.Arguments.ExtractSQL = $pExtractSQL.IsPresent
-
     }
-    
-    #
-    # Data Model      .xdmz      
-    # Report          .xdoz  
-    # Style Template  .xssz  
-    # Subtemplate     .xsbz
+        
     # Pre-Compute Item Archives Filters
     $ExcludeItems = @()
-    $FilterItems += @("*.xdrz", "*.xdoz", "*.xdmz", "*.xdmz", "*.xsbz", "*.xliff", "*.xssz")
+    $FilterItems += @(
+        "*$($BIP_DRZ)",
+        "*$($BIP_DMZ)",
+        "*$($BIP_DOZ)",
+        "*$($BIP_SSZ)",
+        "*$($BIP_SBZ)",
+        "*$($BIP_XLF)"
+    )
 
     if ($global:Settings.Arguments.OmitReports) {
-        $ExcludeItems += "*.xdoz"
+        $ExcludeItems += "*$($BIP_DOZ)"
     }
     if ($global:Settings.Arguments.OmitDataModels) {
-        $ExcludeItems += "*.xdmz"
+        $ExcludeItems += "*$($BIP_DMZ)"
     }
     if ($global:Settings.Arguments.OmitSubtemplates) {
-        $ExcludeItems += "*.xsbz"
+        $ExcludeItems += "*$($BIP_SBZ)"
     }  
     if ($global:Settings.Arguments.OmitTranslations) {
-        $ExcludeItems += "*.xliff"
+        $ExcludeItems += "*$($BIP_XLF)"
     } 
     if ($global:Settings.Arguments.OmitStyleTemplates) {
-        $ExcludeItems += "*.xssz"
+        $ExcludeItems += "*$($BIP_SSZ)"
     }   
-
 
     # Pre-Compute Item advanced Filters
     if ($global:Settings.Arguments.OmitThumbnails) {
-        $ExcludeItems += "*.png"
+        $ExcludeItems += "*$($BIP_THB)"
     }
     if ($global:Settings.Arguments.OmitDataSamples) {
-        $ExcludeItems += "sample.xml"
+        $ExcludeItems += "$($BIP_SMP)"
     } 
     if ($global:Settings.Arguments.OmitSecurity) {
-        $ExcludeItems += "~security.Sec"
+        $ExcludeItems += "$($BIP_SEC)"
     }  
     if ($global:Settings.Arguments.OmitMetadata) {
-        $ExcludeItems += "~metadata.meta"
+        $ExcludeItems += "$($BIP_MET)"
     }  
 
     # Pre-Compute 7Zip exclude patterns
@@ -524,32 +535,24 @@ try {
     Write-Host "Omit RPT Metadata   : $($global:Settings.Arguments.OmitMetadata)"
     Write-Host "Omit DM DataSamples : $($global:Settings.Arguments.OmitDataSamples)"  
     Write-Host "==== Debug ========="
-    Write-Host "GUID                : $GUID"
+    Write-Host "GUID                : $($global:GUID)"
     Write-Host "--------------------------------------------------------------------------------"
-
-    # ---------------------------------------------------------------------------
-    # BI Publisher Archives Extensions
-    # Folder          .xdrz
-    # Data Model      .xdmz      
-    # Report          .xdoz  
-    # Style Template  .xssz  
-    # Subtemplate     .xsbz
-    # ---------------------------------------------------------------------------
 
     # Cleanup Temporary Folder
     Get-ChildItem -LiteralPath "$($global:Settings.Arguments.WorkDirPath)" -Directory -Recurse | ForEach-Object {
         Remove-Item -Path $_.FullName -Force -Recurse
     }
 
-    # Get the candidate archive files and Unarchive / Cleanup
-    $ExportFiles = Get-ChildItem -Path "$($global:Settings.Arguments.InputDirPath)" -Include ($FilterItems) -Recurse
+    # Get the candidate archive files and process
+    $ExportFiles = Get-ChildItem -Path "$($global:Settings.Arguments.InputDirPath)" -File -Include ($FilterItems) -Recurse
     UnarchiveBIPItemExports $ExportFiles
 
     Write-Host "--------------------------------------------------------------------------------"
-    # Exit Routine
+
     exit 0
 }
 catch {
+    # TODO : Need real error handling all over the place
     Write-Error $_
 }
 

@@ -27,25 +27,25 @@
 		<!-- Default temporary folder path -->
 		<WorkDirPath>C:\Temp\AA\tmp</WorkDirPath>
 		<!-- -->
-		<OmitThumbnails>false</OmitThumbnails>
+		<OmitThumbnails>true</OmitThumbnails>
 		<!-- -->
-		<OmitDataSamples>false</OmitDataSamples>
+		<OmitDataSamples>true</OmitDataSamples>
 		<!-- -->
-		<OmitSecurity>false</OmitSecurity>
+		<OmitSecurity>true</OmitSecurity>
 		<!-- -->
-		<OmitMetadata>false</OmitMetadata>
+		<OmitMetadata>true</OmitMetadata>
 		<!-- -->
 		<OmitReports>false</OmitReports>
 		<!-- -->
-		<OmitDataModels>false</OmitDataModels>
+		<OmitDataModels>true</OmitDataModels>
 		<!-- -->
-		<OmitSubtemplates>false</OmitSubtemplates>
+		<OmitSubtemplates>true</OmitSubtemplates>
 		<!-- -->
-		<OmitTranslations>false</OmitTranslations>
+		<OmitTranslations>true</OmitTranslations>
 		<!-- -->
-		<OmitStyleTemplates>false</OmitStyleTemplates>
+		<OmitStyleTemplates>true</OmitStyleTemplates>
 		<!-- -->
-		<ExtractSQL>true</ExtractSQL>	
+		<ExtractSQL>false</ExtractSQL>	
 	</Arguments>
 	
 	<!--
