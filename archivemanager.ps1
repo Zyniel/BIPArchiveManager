@@ -98,8 +98,6 @@ Param(
 # Set-PSDebug -Trace 1
 
 # Constants
-Set-Variable ZIP_CMDPATH -value "C:/Program Files/7-Zip/7z.exe"
-
 Set-Variable BIP_DRZ -value ".xdrz"             # BI Publisher Folders
 Set-Variable BIP_DMZ -value ".xdmz"             # BI Publisher Data Model
 Set-Variable BIP_DOZ -value ".xdoz"             # BI Publisher Report
