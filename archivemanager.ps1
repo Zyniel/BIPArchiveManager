@@ -150,7 +150,8 @@ function loadConfiguration ($pConfigFile) {
     [xml]$ConfigFile = Get-Content ($pConfigFile)
     $Settings = @{
         ZipSettings = @{
-            Path = $ConfigFile.Settings.ZipSettings.Path
+            Path   = $ConfigFile.Settings.ZipSettings.Path
+            Extras = $ConfigFile.Settings.ZipSettings.Extras
         }
         AppSettings = @{
             Certs = $ConfigFile.Settings.AppSettings.Certs
@@ -253,7 +254,11 @@ function RemoveEmptyFolders {
     Param(
         [Parameter(Mandatory = $True)]
         [Alias("Path")]
-        [string]$pPath
+        [string]$pPath,
+
+        [Parameter(Mandatory = $False)]
+        [Alias("SkipRoot")]
+        [bool]$pSkipRoot = $True       
     )
     #
     # https://stackoverflow.com/questions/28631419/how-to-recursively-remove-all-empty-folders-in-powershell
@@ -265,11 +270,11 @@ function RemoveEmptyFolders {
     # hidden files/folders as well.
 
     foreach ($childDirectory in Get-ChildItem -Force -LiteralPath $pPath -Directory) {
-        RemoveEmptyFolders -Path $childDirectory.FullName
+        RemoveEmptyFolders -Path $childDirectory.FullName -SkipRoot $False
     }
     $currentChildren = Get-ChildItem -Force -LiteralPath $pPath
     $isEmpty = ($currentChildren -eq $null)
-    if ($isEmpty) {
+    if ($isEmpty -And !$pSkipRoot) {
         Write-Verbose "Removing empty folder at path '${pPath}'." -Verbose
         Remove-Item -Force -LiteralPath $pPath
     }
@@ -433,8 +438,7 @@ function UnarchiveBIPItemExports ([System.IO.FileInfo[]]$exportFiles) {
             }
 
             $extractDir = Resolve-Path $_.FullName
-            Write-Host "Extracting Item $($extractDir)"
-            Write-Host " - Skipping : $($excludeArgs -join ', ')"
+            Write-Host "Processing $($extractDir)"            
 
             # Rename file and add ".zip" to avoid collision and keep track of old/new names    
             $oldFullName = $_.FullName
@@ -454,8 +458,9 @@ function UnarchiveBIPItemExports ([System.IO.FileInfo[]]$exportFiles) {
             #    bd  - Disable progress indicator
             #    o   - Set output directory
             Write-Host " - Extracting to $($oldName)"
+            Write-Host " - Skipping : $($excludeArgs -join ', ')"
             # & "$ZIP_CMDPATH" "x" "$newFullName" "-aoa" "-o$oldFullName" "-bd" "-bb2" "-bsp1" "-bse2" "-bso1"
-            & $($global:Settings.ZipSettings.Path) "x" "$newFullName" "-aoa" "-o$oldFullName" "-bd" "-bb0" "-bsp0" "-bse2" "-bso0" ($excludeArgs)
+            & "$($global:Settings.ZipSettings.Path)" "x" "$($newFullName)" "-aoa" "-o$($oldFullName)" ($(($global:Settings.ZipSettings.Extras).Split(" "))) ($excludeArgs)
 
             # Remove temporary archive
             Write-Host " - Removing $($newName)"
@@ -489,7 +494,7 @@ function UnarchiveBIPFolderExports ([System.IO.FileInfo[]]$exportFiles) {
         #    bd  - Disable progress indicator
         #    o   - Set output directory    
         # & "$ZIP_CMDPATH" "x" $_.fullname "-aoa" "-o$extractDir" "-bd" "-bb2" "-bsp1" "-bse2" "-bso1"
-        & $($global:Settings.ZipSettings.Path) "x" $_.Fullname "-aoa" "-o$extractDir" "-bd" "-bb0" "-bsp0" "-bse2" "-bso0" ($Exclude7ZipArgs)
+        & "$($global:Settings.ZipSettings.Path)" "x" "$($_.Fullname)" "-aoa" "-o$($extractDir)" ($(($global:Settings.ZipSettings.Extras).Split(" "))) ($Exclude7ZipArgs)
 
         # Unarchive potential Items that were contained in the Folder
         $gci = GetAllBIPExports -Path $extractDir
@@ -588,7 +593,7 @@ try {
     # Archive Excludes
     # Adding * before patterns only
     if ($global:Settings.Ext.OmitReports) {
-        $ExcludeItems += "$($BIP_XDO)"
+        $ExcludeItems += "*$($BIP_XDO)"
     }
     if ($global:Settings.Ext.OmitDataModels) {
         $ExcludeItems += "*$($BIP_XDM)"
@@ -605,11 +610,13 @@ try {
 
     # Global Excludes
     if ($global:Settings.Ext.OmitSecurity) {
+        $ExcludeItems += "$($BIP_SEC)"
         $ExcludeAlwaysItems += "$($BIP_SEC)"
         $ExcludeRPTItems += "$($BIP_SEC)"
         $ExcludeDMItems += "$($BIP_SEC)"            
     }  
     if ($global:Settings.Ext.OmitMetadata) {
+        $ExcludeItems += "$($BIP_MET)"
         $ExcludeAlwaysItems += "$($BIP_MET)"
         $ExcludeRPTItems += "$($BIP_MET)"
         $ExcludeDMItems += "$($BIP_MET)"       
@@ -735,7 +742,7 @@ try {
     Write-Host ">> Removing internal files ..."
     RemoveBIPUselessInternalFiles  "$($global:Settings.Ext.WorkDirPath)" $ExcludeAlwaysItems
     Write-Host ">> Removing empty folders ..."
-    RemoveEmptyFolders "$($global:Settings.Ext.WorkDirPath)/"
+    RemoveEmptyFolders "$($global:Settings.Ext.WorkDirPath)\"
 
     Write-Host "--------------------------------------------------------------------------------"
 

@@ -7,6 +7,9 @@
 	<ZipSettings>
 		<!-- Path to the 7zip executable -->
 		<Path>C:\Program Files\7-Zip\7z.exe</Path>
+		<!--<Extras>-bb0 -bsp0 -bse2 -bso0</Extras>-->
+		<Extras>-bb0 -bsp0 -bse2 -bso0</Extras>
+		<!--<Extras></Extras>-->
 	</ZipSettings>
 	
 	<!--
