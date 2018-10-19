@@ -1,25 +1,42 @@
-###############################################################################
-#
-#                        BI Publisher Archive Manager
-#
-#
-# Author  : Francois CABANNES
-# Version : 1.2.0
-# Date    : 19/10/2018
-#
-##############################################################################
-# 
-# 1.2.0 : Major rework of Config File and Features - No backward compatibility
-# 
-###############################################################################
-#
-# TODO : Code : Real error handling
-# TODO : Code : Cleaup exit status
-# TODO : Feature : Connect to Remote BIP ad download archives
-# TODO : Feature : Connect with Certs
-# TODO : Feature : Parametrage Unarchiver and Archive pattern
-#
-###############################################################################
+<# 
+.Synopsis 
+   Extract, filter and parse BI Publisher exports.
+.DESCRIPTION 
+   The BI Publisher Archive Manager is a script to mass extract, filter and parse
+   Oracle BI Publisher exports. As exports are multi-level compressed archives,
+   this tools provdes a way to recursively handle extraction, filter content to
+   skip and also provides a way to extracting specific types of content.
+
+   Enhanced features comprise template fine grain extraction as well as SQL file
+   extraction for all possible SQL entries in a Data Model.
+.NOTES 
+   Copyright (C) 2018  CABANNES François
+   Modified on 19/10/2018 22:46:00
+
+   TODOS : 
+        * Code : Real error handling
+        * Code : Cleaup exit status
+        * Feature : Connect to Remote BIP ad download archives
+        * Feature : Connect with Certs
+        * Feature : Parametrage Unarchiver and Archive pattern   
+.PARAMETER Message 
+
+.PARAMETER Path 
+
+.PARAMETER Level 
+
+.PARAMETER NoClobber 
+
+.EXAMPLE 
+
+.EXAMPLE 
+
+.EXAMPLE 
+
+.LINK 
+#> 
+
+
 
 #
 [CmdletBinding()]
