@@ -7,6 +7,9 @@
 	<ZipSettings>
 		<!-- Path to the 7zip executable -->
 		<Path>C:\Program Files\7-Zip\7z.exe</Path>
+		<!--<Extras>-bb0 -bsp0 -bse2 -bso0</Extras>-->
+		<Extras>-bb0 -bsp0 -bse2 -bso0</Extras>
+		<!--<Extras></Extras>-->
 	</ZipSettings>
 	
 	<!--
@@ -21,14 +24,14 @@
 	-->
 	<Extractor>
 		<!-- Default source folder path -->
-		<InputDirPath>C:\Temp\AA\in</InputDirPath>
+		<InputDirPath>.\in</InputDirPath>
 		<!-- Default output folder path -->
-		<OutputDirPath>C:\Temp\AA\out</OutputDirPath>
+		<OutputDirPath>.\out</OutputDirPath>
 		<!-- Default temporary folder path -->
-		<WorkDirPath>C:\Temp\AA\tmp</WorkDirPath>
+		<WorkDirPath>.\tmp</WorkDirPath>
 
-		<OmitSecurity>false</OmitSecurity>
-		<OmitMetadata>false</OmitMetadata>
+		<OmitSecurity>true</OmitSecurity>
+		<OmitMetadata>true</OmitMetadata>
 
 		<OmitReports>false</OmitReports>
 		<OmitDataModels>false</OmitDataModels>
@@ -52,7 +55,7 @@
 	<!-- -->
 	<Report>
 		<OmitMetadata>false</OmitMetadata>
-        <OmitProperties>false</OmitProperties>
+		<OmitProperties>false</OmitProperties>
 		<OmitThumbnails>false</OmitThumbnails>
 		<OmitExcel>false</OmitExcel>
 		<OmitXSL>false</OmitXSL>

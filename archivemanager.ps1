@@ -11,7 +11,7 @@
    extraction for all possible SQL entries in a Data Model.
 .NOTES 
    Copyright (C) 2018  CABANNES François
-   Modified on 19/10/2018 22:46:00
+   Modified on 29/11/2018 00:39:00
 
    TODOS : 
         * Code : Real error handling
@@ -19,13 +19,33 @@
         * Feature : Connect to Remote BIP ad download archives
         * Feature : Connect with Certs
         * Feature : Parametrage Unarchiver and Archive pattern   
-.PARAMETER Message 
+.PARAMETER Config 
 
-.PARAMETER Path 
+.PARAMETER InputPath 
 
-.PARAMETER Level 
+.PARAMETER OutputPath 
 
-.PARAMETER NoClobber 
+.PARAMETER WorkPath 
+
+.PARAMETER OmitSecurity 
+
+.PARAMETER OmitThumbnails 
+
+.PARAMETER OmitMetadata 
+
+.PARAMETER OmitDataSamples 
+
+.PARAMETER OmitReports 
+
+.PARAMETER OmitDataModels 
+
+.PARAMETER OmitSubtemplates 
+
+.PARAMETER OmitTranslations
+
+.PARAMETER OmitStyleTemplates
+
+.PARAMETER ExtractSQL
 
 .EXAMPLE 
 
@@ -114,9 +134,15 @@ Param(
     [Alias("ExtractSQL")]
     [switch]$pExtractSQL   
 
+    # TODO : Implement missing parameters
+    # Implement Template Parameters
 )
 
 # Set-PSDebug -Trace 1
+
+# Imports
+$scriptPath = split-path -parent $MyInvocation.MyCommand.Definition
+Import-Module "$scriptPath/includes/format-xml.psm1"
 
 # BIP Archive Types
 Set-Variable BIP_XDR -value ".xdrz"             # Folders
@@ -149,6 +175,12 @@ Set-Variable TPL_PDF -value ".pdf"              # PDF Template
 Set-Variable TPL_RTF -value ".rtf"              # RTF Template
 Set-Variable TPL_XPT -value ".xpt"              # Interactive Report Template
 Set-Variable TPL_RTF -value ".xlf"              # XLIFF Translation
+
+# Report Metadata Types
+Set-Variable XTP_RTF -value "rtf"              # RTF Report Metadata type
+Set-Variable XTP_ETEXT -value "etext"          # ETEXT Report Metadata type
+Set-Variable XTP_XSL -value "xsl"              # XSL Report Metadata type
+Set-Variable XTP_XSLFO -value "fo"             # XSLFO Report Metadata type
 
 # Data Model SQL Prefixes
 Set-Variable BIP_SQL -value ".sql"              # SQL Filename extension
@@ -255,11 +287,11 @@ function GetAllBIPExports {
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory = $True)]
-        [Alias("Path")]
-        [string]$pPath
+        [Alias("FolderPath")]
+        [string]$path
     )
   
-    $gci = Get-ChildItem -Path "$pPath" -Include ($FilterItems) -Recurse
+    $gci = Get-ChildItem -Path "$path" -Include ($FilterItems) -Recurse
     return $gci
 }
 
@@ -270,13 +302,14 @@ function RemoveEmptyFolders {
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory = $True)]
-        [Alias("Path")]
-        [string]$pPath,
+        [Alias("FolderPath")]
+        [string]$path,
 
         [Parameter(Mandatory = $False)]
         [Alias("SkipRoot")]
-        [bool]$pSkipRoot = $True       
+        [bool]$skipRootFolder = $True       
     )
+
     #
     # https://stackoverflow.com/questions/28631419/how-to-recursively-remove-all-empty-folders-in-powershell
     # Thanks to Kirk Munro
@@ -286,14 +319,14 @@ function RemoveEmptyFolders {
     # walks the folder tree once. -Force is used to be able to process
     # hidden files/folders as well.
 
-    foreach ($childDirectory in Get-ChildItem -Force -LiteralPath $pPath -Directory) {
-        RemoveEmptyFolders -Path $childDirectory.FullName -SkipRoot $False
+    foreach ($childDirectory in Get-ChildItem -Force -LiteralPath $path -Directory) {
+        RemoveEmptyFolders -FolderPath $childDirectory.FullName -SkipRoot $False
     }
-    $currentChildren = Get-ChildItem -Force -LiteralPath $pPath
+    $currentChildren = Get-ChildItem -Force -LiteralPath $path
     $isEmpty = ($currentChildren -eq $null)
-    if ($isEmpty -And !$pSkipRoot) {
-        Write-Verbose "Removing empty folder at path '${pPath}'." -Verbose
-        Remove-Item -Force -LiteralPath $pPath
+    if ($isEmpty -And !$skipRootFolder) {
+        Write-Verbose "Removing empty folder at path '${path}'." -Verbose
+        Remove-Item -Force -LiteralPath $path
     }
 }
 
@@ -305,18 +338,18 @@ function RemoveBIPUselessFiles {
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory)]
-        [Alias("Path")]
-        [string]$pPath,
+        [Alias("FolderPath")]
+        [string]$path,
 
         [Parameter()]
-        [Alias("PurgeItems")]
-        [string[]]$pPurgeItems
+        [Alias("Items")]
+        [string[]]$purgeItems
     )
    
     # Filtered Removal
-    if ($pPurgeItems.Count -gt 0) {
-        Write-Host " - Purging : $($pPurgeItems -join ', ')"
-        Remove-Item -Path "$pPath/*" -Include $pPurgeItems -Force
+    if ($purgeItems.Count -gt 0) {
+        Write-Host " - Purging : $($purgeItems -join ', ')"
+        Remove-Item -Path "$path/*" -Include $purgeItems -Force
     }
 }
 
@@ -327,17 +360,17 @@ function RemoveBIPUselessInternalFiles {
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory = $True)]
-        [Alias("Path")]
-        [string]$pPath,
+        [Alias("FolderPath")]
+        [string]$path,
 
         [Parameter()]
-        [Alias("PurgeItems")]
-        [string[]]$pPurgeItems
+        [Alias("Items")]
+        [string[]]$purgeItems
     )
     
     # Filtered Removal
-    if ($pPurgeItems.Count -gt 0) {
-        Get-ChildItem -Path "$pPath" -File -Include $pPurgeItems -Recurse | Remove-Item -Force -Recurse -Verbose
+    if ($purgeItems.Count -gt 0) {
+        Get-ChildItem -Path "$path" -File -Include $purgeItems -Recurse | Remove-Item -Force -Recurse -Verbose
     }
 }
 
@@ -348,7 +381,18 @@ function RemoveBIPUselessInternalFiles {
     This function takes loads a DataModel XML Metadata file and parses the file looking
     for all thepossible SQL queries and saves each found occurence inside a seperate .sql file.
 #>
-function ParseForSQLStmts ($file, $path) {
+function ParseForSQLStmts {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $True)]
+        [Alias("FilePath")]
+        [String]$file,
+
+        [Parameter(Mandatory = $True)]
+        [Alias("FolderPath")]
+        [String]$path
+    ) 
+
     [System.Xml.XmlDocument] $xdoc = new-object System.Xml.XmlDocument
     $xfile = resolve-path($file)
     $xdoc.load($xfile)
@@ -377,13 +421,50 @@ function GetSQLStatements ($xdoc, $path, $xPathSelector, $sqlType) {
 
     Write-Host " - Parsing SQL $sqlType ..."
     $xnodes = $xdoc.selectnodes($xPathSelector, $nsmgr)
-    # burst name="BURSTING_MAIL"
     foreach ($xnode in $xnodes) {
-        # $name = $xnode.
-        $filename = (GetSQLFilenameFromNode $xnode $sqlType)
+        $filename = (GetSQLFilenameFromNode -XMLNode $xnode -Type $sqlType)
         Write-Host "    + BRS Name: $($filename)"
 
-        SaveDOMNodeToFile $xnode.InnerText $path $filename    
+        SaveToFile -Text $xnode.InnerText -FolderPath $path -File $filename    
+    }
+}
+
+function GetReportTemplates {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $True)]
+        [Alias("XMLDoc")]
+        [System.Xml.XmlDocument]$xdoc,
+
+        [Parameter(Mandatory = $True)]
+        [Alias("FolderPath")]
+        [String]$path
+    ) 
+    
+    # Need Namespaces as the XML has some
+    $nsmgr = New-Object System.Xml.XmlNamespaceManager $xdoc.NameTable
+    $nsmgr.AddNamespace("ns", $xdoc.DocumentElement.NamespaceURI)
+    $nsmgr.AddNamespace('xdm', "http://xmlns.oracle.com/oxp/xmlp")
+    $nsmgr.AddNamespace('xsd', "http://wwww.w3.org/2001/XMLSchema")
+
+    Write-Host " - Parsing Report Metadata ..."
+    $xnodes = $xdoc.selectnodes("/ns:report/ns:templates/ns:template", $nsmgr)
+    foreach ($xnode in $xnodes) {
+        $type = ($xnode.type)
+        $fileurl = ($xnode.url)
+        $locale = ($xnode.locale)
+
+        $filename = [System.IO.Path]::GetFileNameWithoutExtension($fileurl)
+        $fileext = [System.IO.Path]::GetExtension($fileurl)
+        $filename = "$($filename)_$($locale)$($fileext)"
+
+        if ($ExcludeComplexeTemplates.contains($type)) {
+            Write-Host "    + Removing $($type) Template : $($filename)"
+            Remove-Item -Path "$($path)/$($filename)"
+        }
+        else {
+            Write-Host "    + Keeping $($type) Template : $($filename)"
+        }
     }
 }
 
@@ -391,7 +472,18 @@ function GetSQLStatements ($xdoc, $path, $xPathSelector, $sqlType) {
 # Get SQL Filename depending on SQL Type.
 # This is to avoid file collision as inside a same type, names are distinct but never accross SQL from various nature.
 #
-function GetSQLFilenameFromNode ($xnode, $sqlType) {
+function GetSQLFilenameFromNode {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $True)]
+        [Alias("XMLNode")]
+        [System.Xml.XmlNode]$xnode,
+
+        [Parameter(Mandatory = $True)]
+        [Alias("Type")]
+        [String]$sqlType
+    )    
+
     $name = ""
     # Different parsing depending on the Node.
     # Completly dependant onn BI Publisher Implementation of the DataModel Structure
@@ -419,7 +511,22 @@ function GetSQLFilenameFromNode ($xnode, $sqlType) {
 #
 # Save XML Node to a valid Filename.
 #
-function SaveDOMNodeToFile($xdom, $path, $filename) {   
+function SaveToFile {  
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $True)]
+        [Alias("Text")]
+        [String]$xdom,
+
+        [Parameter(Mandatory = $True)]
+        [Alias("FolderPath")]
+        [String]$path,
+
+        [Parameter(Mandatory = $True)]
+        [Alias("File")]
+        [String]$filename
+    )
+
     $fileFixed = $filename
     [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object {
         $fileFixed = $fileFixed.replace($_, '.')
@@ -431,15 +538,26 @@ function SaveDOMNodeToFile($xdom, $path, $filename) {
 #
 # Handle Objects Exports
 #
-function UnarchiveBIPItemExports ([System.IO.FileInfo[]]$exportFiles) {
+function UnarchiveBIPItemExports {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $True)]
+        [Alias("Files")]
+        [System.IO.FileInfo[]]$exportFiles
+    )    
+
     $exportFiles | Where-Object { ($FilterItems -contains "*$($_.Extension)") } | ForEach-Object {
         $ext = "*$($_.Extension)"
         # Folders
         if ($ext -eq "*$($BIP_XDR)") {
-            UnarchiveBIPFolderExports $_
+            UnarchiveBIPFolderExports -Files $_
         }
         # All Others
         else {
+
+            # ==== Pre-Process ====
+
+            # ==== Process ====
             $excludeArgs = @()
             $excludeArgs += $ExcludeAlwaysArgs
             $purgeItems = @()           
@@ -482,14 +600,34 @@ function UnarchiveBIPItemExports ([System.IO.FileInfo[]]$exportFiles) {
             # Remove temporary archive
             Write-Host " - Removing $($newName)"
             Remove-Item "$newFullName"
-            # Post-Process Item depending on Item type then trigger a purge
+            
+            # ==== Post-Process ====
+            # DataModel
+            #   - Export SQL Statements
             if ($_.Extension -eq $BIP_XDM) {
                 if ($global:Settings.Dm.ExtractSQL) {
                     $dmPath = Join-Path $oldFullName $DM_XDM
-                    ParseForSQLStmts $dmPath $oldFullName
+                    ParseForSQLStmts -FilePath $dmPath -FolderPath $oldFullName
                 }                
             }
-            RemoveBIPUselessFiles -Path $_.FullName -PurgeItems $purgeItems
+            # Reports
+            #   - Indent XML for xdo.cfg for better comparison
+            #   - Filter Templates
+            if ($_.Extension -eq $BIP_XDO) {
+                $rptPath = Join-Path $oldFullName $RPT_CFG
+                # Fix for Report Metadata Corruption
+                (Get-Content $rptPath -Raw).Replace("`n", "")  | Set-Content $rptPath -Force
+                Format-Xml -PsPath "$rptPath" | Set-Content "$rptPath"
+                
+                $xdoPath = Join-Path $oldFullName $RPT_XDO
+                [System.Xml.XmlDocument] $xdoc = new-object System.Xml.XmlDocument
+                $xfile = resolve-path($xdoPath)
+                $xdoc.load($xfile)
+
+                GetReportTemplates -XMLDoc $xdoc -FolderPath $oldFullName             
+            }         
+            # All   
+            RemoveBIPUselessFiles -FolderPath $_.FullName -Items $purgeItems
         }
     }
 }
@@ -498,7 +636,14 @@ function UnarchiveBIPItemExports ([System.IO.FileInfo[]]$exportFiles) {
 # Unarchives a BI Publisher folder archive and recursively all it's contained BIP archived items.
 # Finishes by a folder cleanup of requested Internal files.
 #
-function UnarchiveBIPFolderExports ([System.IO.FileInfo[]]$exportFiles) {
+function UnarchiveBIPFolderExports {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $True)]
+        [Alias("Files")]
+        [System.IO.FileInfo[]]$exportFiles
+    )
+
     # Unarchive Folders
     $exportFiles | Where-Object { ($_.Extension -eq $BIP_XDR) } | ForEach-Object {
         # Kept because rework coming
@@ -514,15 +659,22 @@ function UnarchiveBIPFolderExports ([System.IO.FileInfo[]]$exportFiles) {
         & "$($global:Settings.ZipSettings.Path)" "x" "$($_.Fullname)" "-aoa" "-o$($extractDir)" ($(($global:Settings.ZipSettings.Extras).Split(" "))) ($Exclude7ZipArgs)
 
         # Unarchive potential Items that were contained in the Folder
-        $gci = GetAllBIPExports -Path $extractDir
-        UnarchiveBIPItemExports $gci
+        $gci = GetAllBIPExports -FolderPath $extractDir
+        UnarchiveBIPItemExports -Files $gci
     }
 }
 
 #
 # 
 #
-Function FormatExclude7ZipToArgs ($exclude7zip) {
+Function FormatExclude7ZipToArgs {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $True)]
+        [Alias("Exclude")]
+        [string[]]$exclude7zip
+    )
+
     # From 7Zip Documentation
     #        -x[<recurse_type>]<file_ref>
     #        <recurse_type> ::= r[- | 0]
@@ -594,6 +746,7 @@ try {
     $ExcludeItems = @()
     $ExcludeAlwaysItems = @()
     $ExcludeRPTItems = @()
+    $ExcludeComplexeTemplates = @()
     $ExcludeDMItems = @()
     $PurgeRPTItems = @()
     $PurgeDMItems = @()    
@@ -652,26 +805,35 @@ try {
     if ($global:Settings.Rpt.OmitExcel) {
         $ExcludeRPTItems += "*$($TPL_XLS)"
     }
-    if ($global:Settings.Rpt.OmitXSL) {
-        $ExcludeRPTItems += "*$($TPL_XSL)"
-    }
-    # TO IMPLEMENT  - Same time as .XSL ATM
-    # if ($global:Settings.Rpt.OmitXSLFO) {
-    #     $ExcludeRPTItems += "*$($TPL_XSLFO)"
-    # }
     if ($global:Settings.Rpt.OmitPDF) {
         $ExcludeRPTItems += "*$($TPL_PDF)"
     }
-    if ($global:Settings.Rpt.OmitRTF) {
-        $ExcludeRPTItems += "*$($TPL_RTF)"
-    }
-    # TO IMPLEMENT - Same time as .RTF ATM
-    # if ($global:Settings.Rpt.OmitETEXT) {
-    #     $ExcludeRPTItems += "*$($TPL_THB)"
-    # }
     if ($global:Settings.Rpt.OmitXPT) {
         $ExcludeRPTItems += "*$($TPL_XPT)"
-    }         
+    }      
+
+    # Handle types with the same extension
+    # RTF + ETEXT
+    if ($global:Settings.Rpt.OmitRTF -and $global:Settings.Rpt.OmitETEXT) {
+        $ExcludeRPTItems += "*$($TPL_RTF)"
+    }
+    elseif ($global:Settings.Rpt.OmitRTF) {
+        $ExcludeComplexeTemplates += "$($XTP_RTF)"
+    }
+    elseif ($global:Settings.Rpt.OmitETEXT) {
+        $ExcludeComplexeTemplates += "$($XTP_ETEXT)"
+    }   
+    # XSL + XSLFO
+    if ($global:Settings.Rpt.OmitXSL -and $global:Settings.Rpt.OmitXSLFO) {
+        $ExcludeRPTItems += "*$($TPL_XSL)"
+    }
+    elseif ($global:Settings.Rpt.OmitXSL) {
+        $ExcludeComplexeTemplates += "$($XTP_XSL)"
+    }
+    elseif ($global:Settings.Rpt.OmitXSLFO) {
+        $ExcludeComplexeTemplates += "$($XTP_XSLFO)"
+    }   
+
 
     # DataModel Excludes    
     if ($global:Settings.Dm.OmitMetadata) {
@@ -697,10 +859,10 @@ try {
     } 
 
     # Pre-Compute 7Zip exclude patterns
-    $ExcludeAlwaysArgs = FormatExclude7ZipToArgs $ExcludeAlwaysItems
-    $ExcludeRPTArgs = FormatExclude7ZipToArgs $ExcludeRPTItems
-    $ExcludeDMArgs = FormatExclude7ZipToArgs $ExcludeDMItems    
-    $Exclude7ZipArgs = FormatExclude7ZipToArgs $ExcludeItems
+    $ExcludeAlwaysArgs = (FormatExclude7ZipToArgs -Exclude $ExcludeAlwaysItems)
+    $ExcludeRPTArgs = (FormatExclude7ZipToArgs -Exclude $ExcludeRPTItems)
+    $ExcludeDMArgs = (FormatExclude7ZipToArgs -Exclude $ExcludeDMItems)
+    $Exclude7ZipArgs = (FormatExclude7ZipToArgs -Exclude $ExcludeItems)
 
     # DEBUG
     Write-Host "--------------------------------------------------------------------------------"
@@ -755,11 +917,11 @@ try {
     # Get the candidate archive files and process
     $ExportFiles = Get-ChildItem -Path "$($global:Settings.Ext.InputDirPath)" -File -Include ($FilterItems) -Recurse
     Write-Host ">> Processing archives"
-    UnarchiveBIPItemExports $ExportFiles
+    UnarchiveBIPItemExports -Files $ExportFiles
     Write-Host ">> Removing internal files ..."
-    RemoveBIPUselessInternalFiles  "$($global:Settings.Ext.WorkDirPath)" $ExcludeAlwaysItems
+    RemoveBIPUselessInternalFiles  -FolderPath "$($global:Settings.Ext.WorkDirPath)" -Items $ExcludeAlwaysItems
     Write-Host ">> Removing empty folders ..."
-    RemoveEmptyFolders "$($global:Settings.Ext.WorkDirPath)\"
+    RemoveEmptyFolders -FolderPath "$($global:Settings.Ext.WorkDirPath)\"
 
     Write-Host "--------------------------------------------------------------------------------"
 
