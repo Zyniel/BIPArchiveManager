@@ -7,6 +7,9 @@
 	<ZipSettings>
 		<!-- Path to the 7zip executable -->
 		<Path>C:\Program Files\7-Zip\7z.exe</Path>
+		<!--<Extras>-bb0 -bsp0 -bse2 -bso0</Extras>-->
+		<Extras></Extras>
+		<!--<Extras></Extras>-->
 	</ZipSettings>
 	
 	<!--
@@ -19,35 +22,50 @@
 	<!--
 		Default parametrized arguments
 	-->
-	<Arguments>
+	<Extractor>
 		<!-- Default source folder path -->
-		<InputDirPath>C:\Temp\AA\in</InputDirPath>
+		<InputDirPath>.\in</InputDirPath>
 		<!-- Default output folder path -->
-		<OutputDirPath>C:\Temp\AA\out</OutputDirPath>
+		<OutputDirPath>.\out</OutputDirPath>
 		<!-- Default temporary folder path -->
-		<WorkDirPath>C:\Temp\AA\tmp</WorkDirPath>
-		<!-- -->
-		<OmitThumbnails>true</OmitThumbnails>
-		<!-- -->
-		<OmitDataSamples>true</OmitDataSamples>
-		<!-- -->
+		<WorkDirPath>.\tmp</WorkDirPath>
+
 		<OmitSecurity>true</OmitSecurity>
-		<!-- -->
 		<OmitMetadata>true</OmitMetadata>
-		<!-- -->
+
 		<OmitReports>true</OmitReports>
-		<!-- -->
 		<OmitDataModels>false</OmitDataModels>
-		<!-- -->
 		<OmitSubtemplates>true</OmitSubtemplates>
-		<!-- -->
 		<OmitTranslations>true</OmitTranslations>
-		<!-- -->
 		<OmitStyleTemplates>true</OmitStyleTemplates>
-		<!-- -->
-		<ExtractSQL>true</ExtractSQL>	
-	</Arguments>
+	</Extractor>
 	
+	<!-- -->
+	<DataModel>
+		<OmitMetadata>true</OmitMetadata>
+		<OmitExcel>true</OmitExcel>
+		<OmitExcel2007>true</OmitExcel2007>
+		<OmitCSV>true</OmitCSV>
+		<OmitXML>true</OmitXML>		
+		<OmitSchema>true</OmitSchema>
+		<OmitSamples>true</OmitSamples>
+		<ExtractSQL>true</ExtractSQL>
+	</DataModel>
+
+	<!-- -->
+	<Report>
+		<OmitMetadata>true</OmitMetadata>
+		<OmitProperties>true</OmitProperties>
+		<OmitThumbnails>true</OmitThumbnails>
+		<OmitExcel>true</OmitExcel>
+		<OmitXSL>true</OmitXSL>
+		<OmitXSLFO>true</OmitXSLFO>
+		<OmitPDF>true</OmitPDF>
+		<OmitRTF>true</OmitRTF>
+		<OmitETEXT>true</OmitETEXT>
+		<OmitXPT>true</OmitXPT>
+	</Report>
+
 	<!--
 		Oracle BI Publisher SOAP Endpoints to target
 	-->
@@ -64,5 +82,3 @@
 		<EndPoint active="true">http://bipublisher.intra.corp/xmlpserver</EndPoint>	
 	</EndPoints>
 </Settings>
-
-
