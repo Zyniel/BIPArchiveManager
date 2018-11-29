@@ -11,7 +11,7 @@
    extraction for all possible SQL entries in a Data Model.
 .NOTES 
    Copyright (C) 2018  CABANNES François
-   Modified on 29/11/2018 00:39:00
+   Modified on 29/11/2018 14:00
 
    TODOS : 
         * Code : Real error handling
@@ -614,19 +614,21 @@ function UnarchiveBIPItemExports {
             #   - Indent XML for xdo.cfg for better comparison
             #   - Filter Templates
             if ($_.Extension -eq $BIP_XDO) {
-                $rptPath = Join-Path $oldFullName $RPT_CFG
-                # Fix for Report Metadata Corruption
-                (Get-Content $rptPath -Raw).Replace("`n", "")  | Set-Content $rptPath -Force
-                Format-Xml -PsPath "$rptPath" | Set-Content "$rptPath"
-                
+                if (!$global:Settings.Rpt.OmitProperties) {
+                    $rptPath = Join-Path $oldFullName $RPT_CFG
+                    # Fix for Report Metadata Corruption
+                    (Get-Content $rptPath -Raw).Replace("`n", "")  | Set-Content $rptPath -Force
+                    Format-Xml -PsPath "$rptPath" | Set-Content "$rptPath"
+                }
+
                 $xdoPath = Join-Path $oldFullName $RPT_XDO
                 [System.Xml.XmlDocument] $xdoc = new-object System.Xml.XmlDocument
                 $xfile = resolve-path($xdoPath)
                 $xdoc.load($xfile)
 
-                GetReportTemplates -XMLDoc $xdoc -FolderPath $oldFullName             
+                GetReportTemplates -XMLDoc $xdoc -FolderPath $oldFullName
             }         
-            # All   
+            # All
             RemoveBIPUselessFiles -FolderPath $_.FullName -Items $purgeItems
         }
     }
@@ -789,7 +791,7 @@ try {
         $ExcludeItems += "$($BIP_MET)"
         $ExcludeAlwaysItems += "$($BIP_MET)"
         $ExcludeRPTItems += "$($BIP_MET)"
-        $ExcludeDMItems += "$($BIP_MET)"       
+        $ExcludeDMItems += "$($BIP_MET)"
     }  
 
     # Report Excludes
@@ -797,7 +799,7 @@ try {
         $PurgeRPTItems += "$($RPT_XDO)"
     }
     if ($global:Settings.Rpt.OmitProperties) {
-        $ExcludeRPTItems += "*$($RPT_CFG)"
+        $ExcludeRPTItems += "$($RPT_CFG)"
     }    
     if ($global:Settings.Rpt.OmitThumbnails) {
         $ExcludeRPTItems += "*$($RPT_THB)"

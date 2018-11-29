@@ -34,35 +34,35 @@
 		<OmitMetadata>true</OmitMetadata>
 
 		<OmitReports>false</OmitReports>
-		<OmitDataModels>false</OmitDataModels>
-		<OmitSubtemplates>false</OmitSubtemplates>
-		<OmitTranslations>false</OmitTranslations>
-		<OmitStyleTemplates>false</OmitStyleTemplates>
+		<OmitDataModels>true</OmitDataModels>
+		<OmitSubtemplates>true</OmitSubtemplates>
+		<OmitTranslations>true</OmitTranslations>
+		<OmitStyleTemplates>true</OmitStyleTemplates>
 	</Extractor>
 	
 	<!-- -->
 	<DataModel>
-		<OmitMetadata>false</OmitMetadata>
-		<OmitExcel>false</OmitExcel>
-		<OmitExcel2007>false</OmitExcel2007>
-		<OmitCSV>false</OmitCSV>
-		<OmitXML>false</OmitXML>		
-		<OmitSchema>false</OmitSchema>
-		<OmitSamples>false</OmitSamples>
+		<OmitMetadata>true</OmitMetadata>
+		<OmitExcel>true</OmitExcel>
+		<OmitExcel2007>true</OmitExcel2007>
+		<OmitCSV>true</OmitCSV>
+		<OmitXML>true</OmitXML>		
+		<OmitSchema>true</OmitSchema>
+		<OmitSamples>true</OmitSamples>
 		<ExtractSQL>true</ExtractSQL>
 	</DataModel>
 
 	<!-- -->
 	<Report>
-		<OmitMetadata>true</OmitMetadata>
-		<OmitProperties>true</OmitProperties>
+		<OmitMetadata>false</OmitMetadata>
+		<OmitProperties>false</OmitProperties>
 		<OmitThumbnails>true</OmitThumbnails>
 		<OmitExcel>false</OmitExcel>
 		<OmitXSL>false</OmitXSL>
-		<OmitXSLFO>true</OmitXSLFO>
+		<OmitXSLFO>false</OmitXSLFO>
 		<OmitPDF>false</OmitPDF>
 		<OmitRTF>false</OmitRTF>
-		<OmitETEXT>true</OmitETEXT>
+		<OmitETEXT>false</OmitETEXT>
 		<OmitXPT>false</OmitXPT>
 	</Report>
 
